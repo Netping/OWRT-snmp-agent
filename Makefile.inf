@@ -1,0 +1,21 @@
+SECTION="NetPing modules"
+CATEGORY="Base"
+TITLE="OWRT-snmp-agent"
+
+PKG_NAME="OWRT-snmp-agent"
+PKG_VERSION="V0.S1"
+PKG_RELEASE=1
+
+ETC_FILES=owrt-snmp-agent.py
+ETC_FILES_DIR=/etc/netping_snmp_agent/
+
+.PHONY: all install
+
+all: install
+
+install:
+	mkdir $(ETC_FILES_DIR)
+	for f in $(ETC_FILES); do cp etc/$${f} $(ETC_FILES_DIR); done
+
+clean:
+	rm -rf $(ETC_FILES_DIR)
