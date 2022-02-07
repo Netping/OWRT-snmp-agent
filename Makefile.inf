@@ -5,7 +5,7 @@ TITLE="OWRT-snmp-agent"
 PKG_NAME="OWRT-snmp-agent"
 PKG_VERSION="0.1"
 PKG_RELEASE=1
-PKG_DEPENDS=OWRT_Log
+PKG_DEPENDS=OWRT-log
 
 ETC_FILES=owrt-snmp-agent.py
 ETC_FILES_DIR=/etc/netping_snmp_agent/
