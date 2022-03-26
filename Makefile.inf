@@ -4,30 +4,47 @@ TITLE="OWRT-snmp-agent"
 
 PKG_NAME="OWRT-snmp-agent"
 PKG_VERSION="0.1"
-PKG_RELEASE=1
-PKG_DEPENDS=OWRT-log
+PKG_RELEASE=2
+PKG_DEPENDS=OWRT-log ubus-0.1.1
 
-ETC_FILES=owrt-snmp-agent.py
-ETC_FILES_DIR=/etc/netping_snmp_agent/
+ETC_FILES=owrt-snmp-agent-init.py owrt-snmp-agent.py
+ETC_FILES_DIR=/etc/netping/$(PKG_NAME)/
+
+AUTORUN_FILES=owrt-snmp-agent-autorun
 
 INSTALL_DIR=
 
 .PHONY: all install
 
-all: configure build install
+all: build preinstall install configure
 
-configure:
-	@echo "Nothing to do"
+ipk: build install
 
 build:
 	@echo "Nothing to do"
 
-# packages required to work:
-# 1) opkg install snmpd
-# 2) python ubus
+preinstall:
+	@echo "Nothing to do"
+
+configure:
+	@echo "Nothing to do"
+
 install:
+ifneq ($(INSTALL_DIR),)
+	mkdir -p $(INSTALL_DIR)/etc/init.d
+	mkdir -p $(INSTALL_DIR)/etc/rc.d
+endif
 	mkdir -p $(INSTALL_DIR)$(ETC_FILES_DIR)
 	for f in $(ETC_FILES); do cp etc/$${f} $(INSTALL_DIR)$(ETC_FILES_DIR); done
+	for f in $(AUTORUN_FILES); do cp $${f} $(INSTALL_DIR)/etc/init.d; done
+	mv $(INSTALL_DIR)/etc/init.d/owrt-snmp-agent-autorun $(INSTALL_DIR)/etc/init.d/owrt-snmp-agent
+	ln -s ../init.d/owrt-snmp-agent $(INSTALL_DIR)/etc/rc.d/S90OWRT-snmp-agent
 
 clean:
-	rm -rf $(INSTALL_DIR)$(ETC_FILES_DIR)
+ifeq ($(INSTALL_DIR),)
+	rm -rf $(ETC_FILES_DIR)
+	rm -f /etc/init.d/owrt-snmp-agent
+	rm -f /etc/rc.d/S90OWRT-snmp-agent
+else
+	rm -rf $(INSTALL_DIR)
+endif

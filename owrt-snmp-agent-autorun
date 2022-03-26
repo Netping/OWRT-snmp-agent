@@ -1,0 +1,13 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2022 NetPing
+
+START=90
+STOP=90
+
+USE_PROCD=1
+
+start_service() {
+        procd_open_instance
+        procd_set_param command python3 /etc/netping/OWRT-snmp-agent/owrt-snmp-agent-init.py &> /dev/null
+        procd_close_instance
+}
