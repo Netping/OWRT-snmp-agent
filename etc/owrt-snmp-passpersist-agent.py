@@ -284,7 +284,7 @@ class PassPersist(object):
             from pprint import pprint
             pprint(self.data)
         else:
-            print("NONE")
+            return
 
         sys.stdout.flush()
 
@@ -426,6 +426,15 @@ def update():
     pp.add_int('3.1', 123, "This is a label for this integer")
 
 
+def my_setter(oid, type, value):
+   # print("my_setter() Received %s with value %s for oid %s." % (type, value, oid))
+   sss = "echo pp_OWRT my_setter >> /root/ppp"
+   os.system(sss)
+   sys.stdout.flush()
+   return True
+
+
 if __name__ == '__main__':
     pp = PassPersist(".1.3.6.1.4.1.25728.8900.1.1")
+    pp.register_setter(".1.3.6.1.4.1.25728.8900.1.1.3.1", my_setter)
     pp.start(update, 10)
