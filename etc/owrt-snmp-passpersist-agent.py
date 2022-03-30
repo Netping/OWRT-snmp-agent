@@ -43,6 +43,19 @@ __license__ = "GPL"
 __version__ = "2.0.0"
 __email__ = "nicolas.agius@lps-it.fr"
 __status__ = "Production"
+import re
+
+search_folder = "/etc/netping/"
+file_snmp_oid = "/snmp_oid/nodes_oid.py"
+list_owrt_module = []
+for owrt_module in os.listdir(search_folder):
+    if os.path.isdir(search_folder + owrt_module):
+        absolut_file_snmp_oid = search_folder + owrt_module + file_snmp_oid
+        if os.path.isfile(absolut_file_snmp_oid):
+                exec(open(absolut_file_snmp_oid).read())
+                name_module = re.sub("[^A-Za-z0-9]", "", owrt_module).lower()
+                tmp_config = getattr(sys.modules[__name__], name_module)
+                list_owrt_module.append(tmp_config)
 
 
 class Error(object):
