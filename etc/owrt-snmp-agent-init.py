@@ -2,6 +2,8 @@
 
 import os
 import sys
+import re
+import importlib
 from journal import journal
 from subprocess import run, CalledProcessError
 
@@ -12,11 +14,11 @@ except ImportError:
     sys.exit(-1)
 
 snmpd_agent = "/etc/config/snmpd"
-search_folder = "/etc/"
-prefix = "netping_"
-oid_folder = "/snmp_oid/"
-oid_file = "nodes_oid"
-
+exec_file = "owrt-snmp-pass-agent.py"
+abspath = os.path.abspath(__file__)
+dir_abspath = os.path.dirname(abspath)
+pass_exec = f"{dir_abspath}/{exec_file}"
+module_netping = 'netping'
 
 def exit_prog(ret_val):
     ubus.disconnect()
@@ -24,146 +26,149 @@ def exit_prog(ret_val):
 
 
 def create_list_node():
-    execs = []
-    new_node_oid = {}
-    for file in os.listdir(search_folder):
-        # Search netping_* modules
-        if not file.startswith(prefix) or not os.path.isdir(search_folder + file):
-            continue
+    search_folder = "/etc/netping/"
+    dir_snmp_oid = "/snmp_oid/"
+    suffix_snmp_oid = "_oid"
+    snmp_pass = []
 
-        oid_path = search_folder + file + oid_folder
-        if os.path.exists(oid_path) and os.path.isdir(oid_path):
-            oid_lst = oid_path + oid_file
-            if os.path.exists(oid_lst) and os.path.isfile(oid_lst):
-                try:
-                    result = run(['uci', '-c', oid_path, 'show', oid_file],
-                                 capture_output=True, check=True, encoding='utf-8')
-                except CalledProcessError as e:
-                    journal.WriteLog("OWRT-snmp-agent", "Normal", "err", "ERROR get entry " + oid_lst)
-                    continue
-
-                # parsing files resources modules for add to snmpd agent
-                for line in result.stdout.split("\n"):
-                    if line:
-                        if line.split("=").pop(1) == "exec":
-                            new_node_oid.clear()
-
-                            # get index exec
-                            ind_exec = line.split("=").pop(0)[-2]
-                            new_node_oid["exec"] = ind_exec
-                            sep = oid_file + ".@exec[" + ind_exec + "]."
-                            for line in result.stdout.split("\n"):
-                                param_node = line.split(sep)
-                                if len(param_node) == 2:
-                                    sect_opt = param_node[1].split("=")
-                                    new_node_oid[sect_opt[0]] = sect_opt[1].replace("'", "")
-
-                            execs.append(new_node_oid.copy())
-
-    return execs
+    for owrt_module in os.listdir(search_folder):
+        if os.path.isdir(search_folder + owrt_module):
+            name_module = re.sub("[^A-Za-z0-9]", "", owrt_module).lower()
+            absolut_dir_snmp_oid = search_folder + owrt_module + dir_snmp_oid
+            if os.path.isfile(absolut_dir_snmp_oid + name_module + suffix_snmp_oid + ".py"):
+                sys.path.insert(1, absolut_dir_snmp_oid)
+                imp_mod = importlib.import_module(name_module + suffix_snmp_oid)
+                get_define_class = getattr(imp_mod, name_module)
+                tmp_config = get_define_class()
+                for node in tmp_config.resources:
+                    oid = node['oid']
+                    snmp_pass.append(oid)
+    return snmp_pass
 
 
-def create_list_exec_snmpd():
-    list_exec_snmpd = []
+def create_list_pass_snmpd():
+    global module_netping
+
+    list_pass_snmpd = []
     try:
         confvalues = ubus.call("uci", "get", {"config": "snmpd"})
     except RuntimeError:
         journal.WriteLog("OWRT-snmp-agent", "Normal", "err",
-                         "create_list_exec_snmpd() error get " + snmpd_agent)
+                         "create_list_pass_snmpd() error get " + snmpd_agent)
         exit_prog(-1)
 
     for confdict in list(confvalues[0]['values'].values()):
-        if confdict['.type'] == "exec":
-            list_exec_snmpd.append(confdict.copy())
-
-    return list_exec_snmpd
-
-
-def diff_netping_snmpd_exec(netping_exec, snmpd_exec):
-    for key, value in netping_exec.items():
-        if key == "exec":
-            continue
-        try:
-            if value == snmpd_exec[key]:
-                continue
-            else:
-                return True
-        except KeyError:
-            # nodes diff
-            return True
-
-    for key, value in snmpd_exec.items():
-        if key.startswith('.'):
-            continue
-        try:
-            if value == netping_exec[key]:
-                continue
-            else:
-                return True
-        except KeyError:
-            # nodes diff
-            return True
-
-    return False
-
-
-def node_to_snmpd(node):
-    fl_change = False
-    for key, value in node.items():
-        if key == 'exec':
+        if confdict['.type'] == "pass":
             try:
-                run(['uci', 'add', 'snmpd', 'exec'],
-                    capture_output=True, check=True, encoding='utf-8')
-                fl_change = True
-            except CalledProcessError as e:
-                journal.WriteLog("OWRT-snmp-agent", "Normal", "err", "ERROR add section " + e.stderr)
-                exit_prog(-1)
-        elif fl_change:
-            str_param = "snmpd.@exec[-1]." + key + "=" + value
-            try:
-                run(['uci', 'set', str_param],
-                    capture_output=True, check=True, encoding='utf-8')
-            except CalledProcessError as e:
-                journal.WriteLog("OWRT-snmp-agent", "Normal", "err",
-                                 "ERROR add option " + e.stderr)
-                exit_prog(-1)
-
-    if fl_change:
-        try:
-            run(['uci', 'commit', 'snmpd'])
-        except CalledProcessError as e:
-            journal.WriteLog("OWRT-snmp-agent", "Normal", "err", "ERROR commit snmpd " + e.stderr)
-            exit_prog(-1)
-
-        run(['/etc/init.d/snmpd', 'restart'])
-
-
-def update_snmpd_exec(netping_exec, snmpd_exec_name):
-    ubus.call("uci", "delete", {"config": "snmpd", "section": snmpd_exec_name})
-    ubus.call("uci", "commit", {"config": "snmpd"})
-    node_to_snmpd(netping_exec)
-
-
-def change_config_snmpd(list_exec):
-    list_exec_snmpd = create_list_exec_snmpd()
-    for netping_exec in list_exec:
-        fl_search = False
-        for snmpd_exec in list_exec_snmpd:
-            try:
-                if netping_exec['miboid'] != snmpd_exec['miboid']:
-                    continue
+                if confdict['module'] == module_netping:
+                    try:
+                        pass_persist = confdict['persist']
+                    except KeyError:
+                        list_pass_snmpd.append(confdict.copy())
             except KeyError:
                 continue
 
-            # node found in config snmpd
-            fl_search = True
-            if diff_netping_snmpd_exec(netping_exec, snmpd_exec):
-                update_snmpd_exec(netping_exec, snmpd_exec['.name'])
-            break
+    return list_pass_snmpd
 
-        if not fl_search:
-            # add node snmp to snmpd
-            node_to_snmpd(netping_exec)
+
+def node_to_snmpd(oid):
+    global pass_exec
+
+    try:
+        run(['uci', 'add', 'snmpd', 'pass'],
+            capture_output=True, check=True, encoding='utf-8')
+    except CalledProcessError as e:
+        journal.WriteLog("OWRT-snmp-agent", "Normal", "err", "ERROR add section " + e.stderr)
+        exit_prog(-1)
+
+    str_param = "snmpd.@pass[-1].module=" + module_netping
+    try:
+        run(['uci', 'set', str_param],
+            capture_output=True, check=True, encoding='utf-8')
+    except CalledProcessError as e:
+        journal.WriteLog("OWRT-snmp-agent", "Normal", "err", "ERROR add option " + e.stderr)
+        exit_prog(-1)
+
+    str_param = "snmpd.@pass[-1].miboid=" + oid
+    try:
+        run(['uci', 'set', str_param],
+            capture_output=True, check=True, encoding='utf-8')
+    except CalledProcessError as e:
+        journal.WriteLog("OWRT-snmp-agent", "Normal", "err", "ERROR add option " + e.stderr)
+        exit_prog(-1)
+
+    str_param = "snmpd.@pass[-1].prog=" + pass_exec
+    try:
+        run(['uci', 'set', str_param],
+            capture_output=True, check=True, encoding='utf-8')
+    except CalledProcessError as e:
+        journal.WriteLog("OWRT-snmp-agent", "Normal", "err", "ERROR add option " + e.stderr)
+        exit_prog(-1)
+
+    try:
+        run(['uci', 'commit', 'snmpd'])
+    except CalledProcessError as e:
+        journal.WriteLog("OWRT-snmp-agent", "Normal", "err", "ERROR commit snmpd " + e.stderr)
+        exit_prog(-1)
+
+    run(['/etc/init.d/snmpd', 'restart'])
+
+
+def update_snmpd_pass(netping_pass_oid, snmpd_pass_name):
+    ubus.call("uci", "delete", {"config": "snmpd", "section": snmpd_pass_name})
+    ubus.call("uci", "commit", {"config": "snmpd"})
+    node_to_snmpd(netping_pass_oid)
+
+
+def check_add_pass(netping_pass_oid, list_pass_snmpd):
+    for pass_snmpd in list_pass_snmpd:
+        try:
+            if netping_pass_oid == pass_snmpd['miboid']:
+                break
+        except KeyError:
+            continue
+    else:
+        # add pass oid to snmpd
+        node_to_snmpd(netping_pass_oid)
+
+
+def check_edit_pass(netping_pass_oid, list_pass_snmpd):
+    global module_netping
+    global pass_exec
+
+    for pass_snmpd in list_pass_snmpd:
+        try:
+            if netping_pass_oid == pass_snmpd['miboid'] and pass_snmpd['module'] == module_netping:
+                try:
+                    if pass_snmpd['prog'] != pass_exec:
+                        update_snmpd_pass(netping_pass_oid, pass_snmpd['.name'])
+                except KeyError:
+                    update_snmpd_pass(netping_pass_oid, pass_snmpd['.name'])
+                finally:
+                    break
+        except KeyError:
+            continue
+
+
+def check_del_pass(pass_snmpd, list_pass_oids):
+    for pass_oids in list_pass_oids:
+        if pass_oids == pass_snmpd['miboid']:
+            break
+    else:
+        ubus.call("uci", "delete", {"config": "snmpd", "section": pass_snmpd['.name']})
+        ubus.call("uci", "commit", {"config": "snmpd"})
+
+
+def change_config_snmpd(list_pass_oids):
+    global pass_exec
+
+    list_pass_snmpd = create_list_pass_snmpd()
+    for netping_pass_oid in list_pass_oids:
+        check_add_pass(netping_pass_oid, list_pass_snmpd)
+        check_edit_pass(netping_pass_oid, list_pass_snmpd)
+
+    for pass_snmpd in list_pass_snmpd:
+        check_del_pass(pass_snmpd, list_pass_oids)
 
 
 if __name__ == '__main__':
@@ -171,14 +176,16 @@ if __name__ == '__main__':
 
     if not os.path.exists(snmpd_agent):
         journal.WriteLog("OWRT-snmp-agent", "Normal", "err", "ERROR snmpd agent not installed")
+        journal.WriteLog("OWRT-snmp-agent", "Normal", "notice", "Failed finish module")
         sys.exit(-1)
 
     if not ubus.connect("/var/run/ubus.sock"):
         journal.WriteLog("OWRT-snmp-agent", "Normal", "err", "Failed connect to ubus")
+        journal.WriteLog("OWRT-snmp-agent", "Normal", "notice", "Failed finish module")
         sys.exit(-1)
 
-    execs = create_list_node()
-    change_config_snmpd(execs)
+    list_pass_oids = create_list_node()
+    change_config_snmpd(list_pass_oids)
 
     journal.WriteLog("OWRT-snmp-agent", "Normal", "notice", "Success finish module")
     exit_prog(0)
