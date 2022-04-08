@@ -4,11 +4,13 @@ TITLE="OWRT-snmp-agent"
 
 PKG_NAME="OWRT-snmp-agent"
 PKG_VERSION="0.1"
-PKG_RELEASE=5
+PKG_RELEASE=6
 PKG_DEPENDS=OWRT-log ubus-0.1.1 snmpd
 
 ETC_FILES=owrt-snmp-agent-init.py owrt-snmp-pass-agent.py
 ETC_FILES_DIR=/etc/netping/$(PKG_NAME)/
+
+TESTS_SRC_DIR=Tests
 
 AUTORUN_FILES=owrt-snmp-agent-autorun
 
@@ -36,6 +38,7 @@ ifneq ($(INSTALL_DIR),)
 endif
 	mkdir -p $(INSTALL_DIR)$(ETC_FILES_DIR)
 	for f in $(ETC_FILES); do cp etc/$${f} $(INSTALL_DIR)$(ETC_FILES_DIR); done
+	cp -r $(TESTS_SRC_DIR) $(INSTALL_DIR)$(ETC_FILES_DIR)
 	for f in $(AUTORUN_FILES); do cp $${f} $(INSTALL_DIR)/etc/init.d; done
 	mv $(INSTALL_DIR)/etc/init.d/owrt-snmp-agent-autorun $(INSTALL_DIR)/etc/init.d/owrt-snmp-agent
 	ln -s ../init.d/owrt-snmp-agent $(INSTALL_DIR)/etc/rc.d/S90OWRT-snmp-agent
