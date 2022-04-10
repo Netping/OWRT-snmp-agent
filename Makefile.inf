@@ -4,7 +4,7 @@ TITLE="OWRT-snmp-agent"
 
 PKG_NAME="OWRT-snmp-agent"
 PKG_VERSION="0.1"
-PKG_RELEASE=8
+PKG_RELEASE=9
 PKG_DEPENDS=OWRT-log ubus-0.1.1 snmpd
 
 ETC_FILES=owrt-snmp-agent-init.py owrt-snmp-pass-agent.py

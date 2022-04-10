@@ -27,6 +27,19 @@ def import_owrt_oid():
                 list_owrt_module.append(tmp_config)
 
 
+def check_field_resources(resources):
+    try:
+        oid = resources['oid']
+        type_r = resources['type']
+        rd = resources['rd']
+        wr = resources['wr']
+        return True
+    except KeyError:
+        journal.WriteLog("OWRT-snmp-agent", "Normal", "err",
+                         f"check_field_resources() agent error format {resources}")
+        return False
+
+
 if __name__ == '__main__':
 
     import_owrt_oid()
@@ -37,6 +50,8 @@ if __name__ == '__main__':
         oid = sys.argv[2]
         for owrt_module in list_owrt_module:
             for nodes in owrt_module.resources:
+                if not check_field_resources(nodes):
+                    continue
                 if oid.startswith(nodes['oid']):
                     try:
                         num_node = int(oid[len(nodes['oid']):].lstrip('.'))
@@ -65,6 +80,8 @@ if __name__ == '__main__':
 
         for owrt_module in list_owrt_module:
             for nodes in owrt_module.resources:
+                if not check_field_resources(nodes):
+                    continue
                 if oid.startswith(nodes['oid']):
                     if oid == nodes['oid']:
                         num_node = 1
@@ -100,6 +117,8 @@ if __name__ == '__main__':
         value = sys.argv[4]
         for owrt_module in list_owrt_module:
             for nodes in owrt_module.resources:
+                if not check_field_resources(nodes):
+                    continue
                 if oid.startswith(nodes['oid']):
                     try:
                         num_node = int(oid[len(nodes['oid']):].lstrip('.'))
