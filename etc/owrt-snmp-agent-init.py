@@ -135,7 +135,8 @@ def update_snmpd_pass(netping_pass_oid, snmpd_pass_name):
     node_to_snmpd(netping_pass_oid)
 
 
-def check_add_pass(netping_pass_oid, list_pass_snmpd):
+def check_add_pass(netping_pass_oid):
+    list_pass_snmpd = create_list_pass_snmpd()
     for pass_snmpd in list_pass_snmpd:
         try:
             if netping_pass_oid == pass_snmpd['miboid']:
@@ -147,10 +148,11 @@ def check_add_pass(netping_pass_oid, list_pass_snmpd):
         node_to_snmpd(netping_pass_oid)
 
 
-def check_edit_pass(netping_pass_oid, list_pass_snmpd):
+def check_edit_pass(netping_pass_oid):
     global module_netping
     global pass_exec
 
+    list_pass_snmpd = create_list_pass_snmpd()
     for pass_snmpd in list_pass_snmpd:
         try:
             if netping_pass_oid == pass_snmpd['miboid'] and pass_snmpd['module'] == module_netping:
@@ -165,25 +167,27 @@ def check_edit_pass(netping_pass_oid, list_pass_snmpd):
             continue
 
 
-def check_del_pass(pass_snmpd, list_pass_oids):
-    for pass_oids in list_pass_oids:
-        if pass_oids == pass_snmpd['miboid']:
-            break
+def check_del_pass(list_pass_oids):
+    fl_del = False
+
+    list_pass_snmpd = create_list_pass_snmpd()
+    for pass_snmpd in list_pass_snmpd:
+        for pass_oids in list_pass_oids:
+            if pass_oids == pass_snmpd['miboid']:
+                break
+        else:
+            ubus.call("uci", "delete", {"config": "snmpd", "section": pass_snmpd['.name']})
+            fl_del = True
     else:
-        ubus.call("uci", "delete", {"config": "snmpd", "section": pass_snmpd['.name']})
-        ubus.call("uci", "commit", {"config": "snmpd"})
+        if fl_del:
+            ubus.call("uci", "commit", {"config": "snmpd"})
 
 
 def change_config_snmpd(list_pass_oids):
-    global pass_exec
-
-    list_pass_snmpd = create_list_pass_snmpd()
     for netping_pass_oid in list_pass_oids:
-        check_add_pass(netping_pass_oid, list_pass_snmpd)
-        check_edit_pass(netping_pass_oid, list_pass_snmpd)
-
-    for pass_snmpd in list_pass_snmpd:
-        check_del_pass(pass_snmpd, list_pass_oids)
+        check_add_pass(netping_pass_oid)
+        check_edit_pass(netping_pass_oid)
+    check_del_pass(list_pass_oids)
 
 
 if __name__ == '__main__':
