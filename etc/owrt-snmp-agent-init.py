@@ -25,6 +25,19 @@ def exit_prog(ret_val):
     sys.exit(ret_val)
 
 
+def check_field_resources(resources):
+    try:
+        oid = resources['oid']
+        type_r = resources['type']
+        rd = resources['rd']
+        wr = resources['wr']
+        return True
+    except KeyError:
+        journal.WriteLog("OWRT-snmp-agent", "Normal", "err",
+                         f"check_field_resources() error format {resources}")
+        return False
+
+
 def create_list_node():
     search_folder = "/etc/netping/"
     dir_snmp_oid = "/snmp_oid/"
@@ -41,6 +54,8 @@ def create_list_node():
                 get_define_class = getattr(imp_mod, name_module)
                 tmp_config = get_define_class()
                 for node in tmp_config.resources:
+                    if not check_field_resources(node):
+                        continue
                     oid = node['oid']
                     snmp_pass.append(oid)
     return snmp_pass
