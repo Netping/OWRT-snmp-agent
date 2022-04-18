@@ -19,5 +19,8 @@ if __name__ == "__main__":
         print("Wrong version! Expected \"" + expected_version + "\"")
         sys.exit(-2)
 
+    print("OWRT-snmp-agent")
+    print(f"Version {expected_version}")
+
     os.system("pytest --capture=no -v test.py")
     sys.exit(0)
